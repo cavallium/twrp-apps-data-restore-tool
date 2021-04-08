@@ -1,5 +1,5 @@
-TWRP Manual Transfer
-====================
+TWRP apps data restore tool
+===========================
 
 This tool allows you to recover apps data from a TWRP-compatible backup
 
