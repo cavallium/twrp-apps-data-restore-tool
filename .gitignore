@@ -3,3 +3,5 @@
 /adb-sync/
 /work/
 *.kate-swp
+
+*.ab

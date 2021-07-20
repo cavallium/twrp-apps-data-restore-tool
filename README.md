@@ -31,4 +31,15 @@ This tool allows you to recover apps data from a TWRP-compatible backup
 	- If the play store tells you an error and you don't have that app, skip to the next app using the volume DOWN button.
 7. At the end restart the phone to fix permissions, if the app are crashing.
 
-The program is licensed with GPLv3 by Andrea Cavalli
+## ADB ".ab" backups
+With .ab backups you must follow these extra steps before the others:
+1. `adb backup --twrp`
+2. Install the lastest openjdk version of your distro
+3. `./ab_fix.sh <path-to-the-ab-file>`
+3. follow the other steps
+
+## License
+
+The program is licensed with GPLv3 by Andrea Cavalli (https://cavallium.it)
+
+twrpabx (https://github.com/prudy/twrpabx/tree/img_and_issue4)
