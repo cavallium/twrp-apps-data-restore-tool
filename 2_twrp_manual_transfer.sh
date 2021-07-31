@@ -34,15 +34,15 @@ remotepackages="/data/user/${USER_NUMBER}/"
 readarray -t packages < "work/packages_list_${BACKUP_USER_NUMBER}.txt"
 
 if [ -z "$BACKUP_USER_NUMBER" ]
-  then
-    echo "Syntax: script.sh <old_user_id_number> <new_user_id_number>"
-    exit 1
+then
+	echo "Syntax: script.sh <old_user_id_number> <new_user_id_number>"
+	exit 1
 fi
 
 if [ -z "$USER_NUMBER" ]
-  then
-    echo "Syntax: script.sh <old_user_id_number> <new_user_id_number>"
-    exit 1
+then
+	echo "Syntax: script.sh <old_user_id_number> <new_user_id_number>"
+	exit 1
 fi
 
 printf "=========================================================\n"
@@ -57,44 +57,61 @@ printf "=========================================================\n"
 
 for package in ${packages[*]}
 do
-  {
-    printf "=========================================================\n"
-    adb shell am start -a android.intent.action.VIEW -d market://details?id=$package
-    #while [ -n "$(adb shell "dumpsys activity | grep top-activity | grep 'com.android.vending'")" ]; do
-    # echo "wait..."
-    # sleep 1
-    #done
-    echo "When you have the app installed, press volume UP to copy the data, press volume DOWN to skip"
-    if [[ $(adb shell "getevent -l -v4 | grep -m1 --line-buffered KEY_VOLUME") == *"KEY_VOLUMEDOWN"* ]]; then
-     echo "skipped $package"
-    else
-	    printf "Killing %s\n" $package
-	    adb shell su -c "am force-stop --user $USER_NUMBER $package"
-	    printf "Clearing %s\n" $package
-	    adb shell su -c "pm clear --user $USER_NUMBER $package || true"
-	    
-	    userid=$(adb shell su -c "stat -c '%u' $remotepackages$package") || $(adb shell su -c "dumpsys package $package" | grep userId | cut -d "=" -f2- | tr -d [:alpha:] | head -n 1)
-	    groupid=$(adb shell su -c "stat -c '%g' $remotepackages$package") || $(adb shell su -c "dumpsys package $package" | grep userId | cut -d "=" -f2- | tr -d [:alpha:] | head -n 1)
-	    echo "App UserId=$userid"
-	    echo "App GroupId=$groupid"
-	    
-	    printf "Compressing %s\n" $package
-	    tar cfz .tmp_$package.tar.gz -C $localpackages $package/
-	    printf "Copying %s\n" $package
-	    adb shell su -c "chown -R shell:shell /sdcard/.to_move"
-	    adb shell su -c "chmod -R 777 /sdcard/.to_move"
-	    adb push .tmp_$package.tar.gz /sdcard/.to_move/.tmp_$package.tar.gz
-	    rm .tmp_$package.tar.gz
-	    printf "Extracting %s\n" $package
-	    adb shell "su -c \"cd /sdcard/.to_move/ && tar xfzom /sdcard/.to_move/.tmp_$package.tar.gz -C $remotepackages && rm .tmp_$package.tar.gz\""
-	#    printf "Restoring %s\n" $package
-	#    adb shell su -c "mv /sdcard/.to_move/$package $remotepackages"
-	    printf "Correcting package\n"
-	    adb shell su -c "chown -R \"$userid:$groupid\" \"$remotepackages$package\""
-	    adb shell su -c "restorecon -R \"$remotepackages$package\""
-	    printf "Package restored on device\n"
-	    sleep 1
-    fi
+{
+	printf "=========================================================\n"
+	if [[ $(curl -oIL -s -w "%{http_code}"  "https://play.google.com/store/apps/details?id=$package") -eq 404 ]]; then
+		echo "Skipping package \"$package\" because it's not on the play store."
+	else
+		adb shell am start -a android.intent.action.VIEW -d market://details?id=$package
+		#while [ -n "$(adb shell "dumpsys activity | grep top-activity | grep 'com.android.vending'")" ]; do
+		# echo "wait..."
+		# sleep 1
+		#done
+		echo "When you have the app installed, press volume UP to copy the data, press volume DOWN to skip"
+		if [[ $(adb shell "getevent -l -v4 | grep -m1 --line-buffered -E -e \"KEY_VOLUME(UP|DOWN)[ ]+DOWN\"") == *"KEY_VOLUMEDOWN"* ]]; then
+			adb shell input keyevent KEYCODE_HOME
+			echo "skipped $package"
+		else
+			adb shell input keyevent KEYCODE_HOME
+			printf "Killing %s\n" $package
+			adb shell su -c "am force-stop --user $USER_NUMBER $package"
+			printf "Clearing %s\n" $package
+			adb shell su -c "pm clear --user $USER_NUMBER $package || true"
+			
+			echo "Local packages=$localpackages"
+			echo "Remote packages=$remotepackages"
+			echo "Package=$package"
+			userid=$(adb shell su -c "stat -c '%U' $remotepackages$package")
+			groupid=$(adb shell su -c "stat -c '%G' $remotepackages$package")
+			cacheuserid="${userid}"
+			cachegroupid="${groupid}_cache"
+			echo "App Data UserId=$userid"
+			echo "App Data GroupId=$groupid"
+			echo "App Cache UserId=$cacheuserid"
+			echo "App Cache GroupId=$cachegroupid"
+			
+			printf "Compressing %s\n" $package
+			rm -r "$localpackages$package/cache" 2>/dev/null
+			rm -r "$localpackages$package/code_cache" 2>/dev/null
+			tar cfz .tmp_$package.tar.gz -C $localpackages $package/
+			printf "Copying %s\n" $package
+			adb shell su -c "chown -R shell:shell /sdcard/.to_move"
+			adb shell su -c "chmod -R 777 /sdcard/.to_move"
+			adb push .tmp_$package.tar.gz /sdcard/.to_move/.tmp_$package.tar.gz
+			rm .tmp_$package.tar.gz
+			printf "Extracting %s\n" $package
+			adb shell "su -c \"cd /sdcard/.to_move/ && tar xfzom /sdcard/.to_move/.tmp_$package.tar.gz -C $remotepackages && rm .tmp_$package.tar.gz\""
+		#    printf "Restoring %s\n" $package
+		#    adb shell su -c "mv /sdcard/.to_move/$package $remotepackages"
+			printf "Correcting package\n"
+			adb shell su -c "chown -R \"$userid:$groupid\" \"$remotepackages$package\""
+			adb shell su -c "chown -R \"$cacheuserid:$cachegroupid\" \"$remotepackages$package/cache\" 2>/dev/null"
+			adb shell su -c "chown -R \"$cacheuserid:$cachegroupid\" \"$remotepackages$package/code_cache\" 2>/dev/null"
+			adb shell su -c "restorecon -R \"$remotepackages$package\""
+			printf "Package restored on device\n"
+			sleep 1
+		fi
+	fi
 	} || {
 		echo "Error"
 	}

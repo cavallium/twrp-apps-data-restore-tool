@@ -11,6 +11,9 @@ fi
 
 mkdir -p "$outdir"
 
-find "$backupdir" -name "data.*.win*" ! -name '*.sha2' ! -name '*.info' -type f -exec tar -xvf {} --directory="$bashdir/$outdir" \;
+for i in $(find "$backupdir" -name "data.*.win*" ! -name '*.sha2' ! -name '*.info' -type f); do
+    echo "Extracting file \"$i\""
+    pv $i | tar -x --overwrite -C "$bashdir/$outdir"
+done
 
 echo "Done."
